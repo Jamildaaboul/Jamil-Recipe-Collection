@@ -1238,6 +1238,10 @@ body.lang-ar .toc-dots{margin:0 5px;}
   <button class="tb-btn" id="snd-btn" onclick="toggleSound()" title="Toggle page-turn sound">🔊</button>
   <button class="tb-btn" id="print-btn" onclick="exportPDF()" title="Export / Print">🖨️ Print</button>
   <button class="tb-btn" id="lang-btn" onclick="toggleLang()" title="Switch language">العربية</button>
+  <div class="tb-sep"></div>
+  <button class="tb-btn" id="export-btn" onclick="exportRecipes()" title="Export recipes to file">💾 Export</button>
+  <button class="tb-btn" id="import-btn" onclick="document.getElementById('import-file').click()" title="Import recipes from file">📂 Import</button>
+  <input type="file" id="import-file" accept=".json" style="display:none" onchange="importRecipes(this)">
 </div>
 
 <!-- ═══════ SEARCH PANEL ═══════ -->
@@ -2121,6 +2125,55 @@ function updateRecipeField(id,field,index,value,el){
 
 /* ─── PRINT / EXPORT ─── */
 function exportPDF(){window.print();}
+
+/* ─── EXPORT ─── */
+function exportRecipes(){
+  const data={
+    version:1,
+    exported:new Date().toISOString(),
+    recipes:recipes,
+    coverFront:localStorage.getItem('grCoverFront')||null,
+    coverEndpaper:localStorage.getItem('grCoverEndpaper')||null,
+    ownerName:localStorage.getItem('grOwnerName')||''
+  };
+  const blob=new Blob([JSON.stringify(data,null,2)],{type:'application/json'});
+  const url=URL.createObjectURL(blob);
+  const a=document.createElement('a');
+  const d=new Date();
+  const stamp=d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
+  a.href=url;
+  a.download='jamil-recipes-'+stamp+'.json';
+  a.click();
+  URL.revokeObjectURL(url);
+  toast('💾 Recipes exported!');
+}
+
+/* ─── IMPORT ─── */
+function importRecipes(input){
+  const file=input.files[0];
+  if(!file)return;
+  const reader=new FileReader();
+  reader.onload=e=>{
+    try{
+      const data=JSON.parse(e.target.result);
+      // Support both raw array and versioned export object
+      const imported=Array.isArray(data)?data:(data.recipes||null);
+      if(!imported||!Array.isArray(imported))throw new Error('Invalid format');
+      if(!confirm('Import '+imported.length+' recipes? This will REPLACE your current recipes.'))return;
+      recipes=imported;
+      save();
+      if(data.ownerName){localStorage.setItem('grOwnerName',data.ownerName);}
+      if(data.coverFront){localStorage.setItem('grCoverFront',data.coverFront);}
+      if(data.coverEndpaper){localStorage.setItem('grCoverEndpaper',data.coverEndpaper);}
+      buildSpreads(null);render();
+      toast('📂 '+imported.length+' recipes imported!');
+    }catch(err){
+      alert('Could not read file. Make sure it is a valid Jamil Recipe export (.json).');
+    }
+    input.value='';
+  };
+  reader.readAsText(file);
+}
 
 /* ─── TOAST ─── */
 let toastT;
